@@ -82,14 +82,65 @@ if (-not $SkipVideo) {
   }
 }
 
-# ── 4. .env (admin key) ──────────────────────────────────────────────────────
-Step 'เตรียม .env'
-& ssh $ServerHost "cd $Dir && [ -f .env ] || { printf 'AQG_ADMIN_KEY=%s\n' `$(head -c 18 /dev/urandom | od -An -tx1 | tr -d ' \n') > .env; chmod 600 .env; }"
+# ── 4. ตรวจการตั้งค่า reverse proxy บนเซิร์ฟเวอร์ ────────────────────────────
+Step 'เตรียม .env + ตรวจ reverse proxy'
+& ssh $ServerHost "cd $Dir && [ -f .env ] || { printf 'AQG_ADMIN_KEY=%s
+' `$(head -c 18 /dev/urandom | od -An -tx1 | tr -d ' 
+') > .env; chmod 600 .env; }"
+
+if (-not $Caddy) {
+  $info = & ssh $ServerHost "sh $Dir/tools/detect-proxy.sh" 2>&1
+  $val = { param($k) ($info | Where-Object { $_ -like "$k=*" } | Select-Object -First 1) -replace "^$k=", '' }
+
+  $refLabels = $info | Where-Object { $_ -like 'RLBL=*' }
+  $net = ($info | Where-Object { $_ -like 'RNET=*' } | Select-Object -First 1) -replace '^RNET=', ''
+  if (-not $net) {
+    $net = ($info | Where-Object { $_ -like 'PNET=*' } |
+            ForEach-Object { $_ -replace '^PNET=', '' } |
+            Where-Object { $_ -notin @('bridge','host','none') } | Select-Object -First 1)
+  }
+
+  # certresolver / entrypoints: ดูจากบริการที่ใช้งานได้จริงก่อน แล้วค่อยดูจาก traefik
+  $resolver = ($refLabels | Where-Object { $_ -match 'certresolver=(.+)$' } |
+               ForEach-Object { $Matches[1] } | Select-Object -First 1)
+  if (-not $resolver) {
+    $resolver = ($info | Where-Object { $_ -match 'certificatesresolvers\.([A-Za-z0-9_-]+)\.' } |
+                 ForEach-Object { $Matches[1] } | Select-Object -First 1)
+  }
+  $epHttps = ($refLabels | Where-Object { $_ -match 'entrypoints=(.+)$' } |
+              ForEach-Object { ($Matches[1] -split ',')[0] } | Select-Object -First 1)
+  $epHttp = $null
+  if (-not $epHttps) {
+    $epHttps = ($info | Where-Object { $_ -match 'entrypoints\.([A-Za-z0-9_-]+)\.address=:443' } |
+                ForEach-Object { $Matches[1] } | Select-Object -First 1)
+  }
+  $epHttp = ($info | Where-Object { $_ -match 'entrypoints\.([A-Za-z0-9_-]+)\.address=:80' } |
+             ForEach-Object { $Matches[1] } | Select-Object -First 1)
+
+  if (-not $net) {
+    Write-Host '  ไม่พบ reverse proxy บนเซิร์ฟเวอร์' -ForegroundColor Yellow
+    Write-Host '  ให้รันใหม่ด้วย:  .	ools\deploy-uat.ps1 -Caddy -SkipVideo' -ForegroundColor Yellow
+    Fail 'หยุดไว้ก่อน เพื่อไม่ให้ตั้งค่าผิด'
+  }
+
+  if (-not $resolver) { $resolver = 'letsencrypt' }
+  if (-not $epHttps)  { $epHttps  = 'websecure' }
+  if (-not $epHttp)   { $epHttp   = 'web' }
+
+  Write-Host "  network   : $net"      -ForegroundColor Green
+  Write-Host "  resolver  : $resolver" -ForegroundColor Green
+  Write-Host "  entrypoint: $epHttps (https) / $epHttp (http)" -ForegroundColor Green
+
+  $envLines = "PROXY_NETWORK=$net`nCERT_RESOLVER=$resolver`nEP_HTTPS=$epHttps`nEP_HTTP=$epHttp`nAQG_DOMAIN=$Domain`nAQG_REQUIRE_CODE=0"
+  $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($envLines))
+  & ssh $ServerHost "cd $Dir && grep -v -E '^(PROXY_NETWORK|CERT_RESOLVER|EP_HTTPS|EP_HTTP|AQG_DOMAIN|AQG_REQUIRE_CODE)=' .env > .env.tmp; echo '$b64' | base64 -d >> .env.tmp; mv .env.tmp .env; chmod 600 .env"
+  if ($LASTEXITCODE -ne 0) { Fail 'เขียน .env บนเซิร์ฟเวอร์ไม่สำเร็จ' }
+}
 
 # ── 5. build + run ───────────────────────────────────────────────────────────
 Step "build และ start ($compose)"
 & ssh $ServerHost "cd $Dir && docker compose -f $compose up -d --build"
-if ($LASTEXITCODE -ne 0) { Fail "docker compose ไม่สำเร็จ — ดู log: ssh $ServerHost 'cd $Dir && docker compose -f $compose logs --tail 60'" }
+if ($LASTEXITCODE -ne 0) { Fail "docker compose ไม่สำเร็จ — ดู log: ssh $ServerHost `"cd $Dir && docker compose -f $compose logs --tail 60`"" }
 
 # ── 6. ตรวจผล ────────────────────────────────────────────────────────────────
 Step 'ตรวจว่าเปิดใช้งานได้'
