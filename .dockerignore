@@ -1,0 +1,9 @@
+.git
+node_modules
+results
+logs
+video
+tools/shots
+config/admin-key.txt
+*.pdf
+*.ps1

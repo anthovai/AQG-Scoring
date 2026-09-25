@@ -414,3 +414,38 @@ button{font:inherit}
   .pill{border-color:#999; color:#555}
   .logtable th,.logtable td{border-color:#ddd}
 }
+
+/* ══════════ หน้า feedback (UAT) ══════════ */
+.fb__rows{display:grid; gap:18px; margin-bottom:26px}
+.fbrow{display:grid; grid-template-columns:1fr auto; gap:10px 16px; align-items:center}
+@media (max-width:640px){.fbrow{grid-template-columns:1fr}}
+.fbrow__q{font-size:15px}
+.fbrow__q small{display:block; color:var(--ink-faint); font-size:12.5px; margin-top:2px}
+.rate{display:flex; gap:8px}
+.rate button{
+  width:42px; height:42px; border-radius:11px; cursor:pointer;
+  background:rgba(232,238,242,.05); border:1px solid var(--line-2); color:var(--ink-dim);
+  font-family:"Kanit",sans-serif; font-size:15px;
+  transition:background .14s,border-color .14s,color .14s,transform .12s;
+}
+.rate button:hover{border-color:var(--amber); color:var(--amber-2)}
+.rate button:active{transform:translateY(1px)}
+.rate button.is-on{
+  background:linear-gradient(180deg,var(--amber-2),var(--amber));
+  border-color:transparent; color:#20150a; font-weight:700;
+}
+.field textarea{
+  width:100%; padding:11px 14px; color:var(--ink); font:inherit; resize:vertical;
+  background:rgba(0,0,0,.4); border:1px solid var(--line-2); border-radius:9px;
+}
+.field textarea:focus{outline:none; border-color:var(--amber)}
+.fb__grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+@media (max-width:640px){.fb__grid{grid-template-columns:1fr}}
+.fb__cta{
+  margin-top:8px; padding:20px 24px; border-radius:var(--r);
+  background:rgba(232,163,61,.1); border:1px solid rgba(232,163,61,.45);
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+}
+.fb__cta p{margin:0; flex:1 1 280px; color:var(--ink)}
+.fb__cta b{display:block; font-family:"Kanit",sans-serif; font-size:17px; margin-bottom:2px}
+.fb__cta span{color:var(--ink-dim); font-size:14px}

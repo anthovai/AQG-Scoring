@@ -8,6 +8,8 @@
         GET  /api/config                 → what the client may use
         GET  /api/code?code=XXXX         → verify an access code
         POST /api/sessions               → store one finished session
+        POST /api/feedback               → store one feedback form (หน้าสุดท้าย)
+        GET  /api/feedback?key=…         → read all feedback (admin)
         GET  /api/sessions?key=…         → list sessions      (admin)
         GET  /api/sessions.csv?key=…     → one CSV of every decision (admin)
         GET  /api/sessions-wide.csv?key=… → 1 row per session, 6 dims as columns
@@ -39,6 +41,7 @@ var REQUIRE_CODE = process.env.AQG_REQUIRE_CODE === '1';
 
 var RESULTS_DIR = path.join(ROOT, 'results');
 var SESSIONS_LOG = path.join(RESULTS_DIR, 'sessions.jsonl');
+var FEEDBACK_LOG = path.join(RESULTS_DIR, 'feedback.jsonl');
 var CODES_FILE = path.join(ROOT, 'config', 'access-codes.json');
 var MAX_BODY = 512 * 1024;
 
@@ -177,6 +180,24 @@ function saveSession(s) {
   fs.appendFileSync(SESSIONS_LOG, JSON.stringify(s) + '\n', 'utf8');
   return id;
 }
+function saveFeedback(f) {
+  fs.mkdirSync(RESULTS_DIR, { recursive: true });
+  f.receivedAt = new Date().toISOString();
+  f.id = 'FB-' + Date.now().toString(36).toUpperCase();
+  fs.appendFileSync(FEEDBACK_LOG, JSON.stringify(f) + '\n', 'utf8');
+  return f.id;
+}
+function allFeedback() {
+  var out = [];
+  try {
+    fs.readFileSync(FEEDBACK_LOG, 'utf8').split('\n').forEach(function (l) {
+      if (!l.trim()) return;
+      try { out.push(JSON.parse(l)); } catch (e) { /* ข้ามบรรทัดที่เสีย */ }
+    });
+  } catch (e) { /* ยังไม่มีใครส่ง */ }
+  return out.reverse();
+}
+
 function allSessions() {
   var out = [];
   try {
@@ -254,6 +275,31 @@ function api(req, res, p, q) {
         return send(res, 500, { ok: false, error: 'บันทึกผลไม่สำเร็จ' });
       }
     });
+  }
+
+  if (p === '/api/feedback' && req.method === 'POST') {
+    return body(req, function (err, buf) {
+      if (err) return send(res, 413, { ok: false, error: String(err.message || err) });
+      var f;
+      try { f = JSON.parse(buf.toString('utf8')); } catch (e) {
+        return send(res, 400, { ok: false, error: 'invalid json' });
+      }
+      if (!f || typeof f !== 'object') return send(res, 400, { ok: false, error: 'invalid body' });
+      try {
+        var id = saveFeedback(f);
+        console.log('feedback ' + id + (f.sessionId ? ' (session ' + f.sessionId + ')' : ''));
+        return send(res, 200, { ok: true, id: id });
+      } catch (e) {
+        console.error('feedback save failed', e);
+        return send(res, 500, { ok: false, error: 'บันทึกความคิดเห็นไม่สำเร็จ' });
+      }
+    });
+  }
+
+  if (p === '/api/feedback') {
+    if (!isAdmin(q, req)) return send(res, 401, { ok: false, error: 'admin key required' });
+    var fb = allFeedback();
+    return send(res, 200, { ok: true, count: fb.length, feedback: fb }, { 'Cache-Control': 'no-store' });
   }
 
   /* everything below is admin-only */

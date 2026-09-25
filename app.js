@@ -638,6 +638,10 @@
     });
     h += '</tbody></table></div>';
 
+    h += '<div class="fb__cta"><p><b>ช่วยบอกความเห็นหน่อยครับ</b>' +
+         '<span>นี่คือรอบทดสอบ (UAT) — ความเห็นของท่านจะถูกส่งกลับมาที่ทีมพัฒนาโดยตรง</span></p>' +
+         '<button class="btn btn--primary" id="btn-feedback">ให้ความคิดเห็น ▸</button></div>';
+
     h += '<div class="card"><p class="note">Research note: “' + META.researchNote + '”</p>' +
          '<p class="status" id="save-status"></p>' +
          '<div class="row"><button class="btn btn--primary" id="btn-json">ดาวน์โหลด JSON</button>' +
@@ -652,6 +656,7 @@
     $('#btn-json').onclick = function () { download('json'); };
     $('#btn-csv').onclick = function () { download('csv'); };
     $('#btn-print').onclick = function () { window.print(); };
+    $('#btn-feedback').onclick = function () { buildFeedback(); show('feedback'); };
     $('#btn-again').onclick = begin;
     submitSession();
   }
@@ -687,6 +692,108 @@
         var b = $('#btn-retry');
         if (b) b.onclick = function () { submitSession(true); };
       });
+  }
+
+  /* ══════════ หน้าสุดท้าย: feedback (UAT) ══════════ */
+  var FB_QUESTIONS = [
+    { key: 'overall', q: 'ภาพรวมของต้นแบบนี้', hint: '1 = แย่มาก · 5 = ดีมาก' },
+    { key: 'clarity', q: 'เนื้อเรื่องและคำถามเข้าใจง่ายแค่ไหน', hint: '1 = สับสน · 5 = ชัดเจนมาก' },
+    { key: 'realism', q: 'สถานการณ์สมจริง/ใกล้เคียงงานจริงแค่ไหน', hint: '1 = ไม่สมจริง · 5 = สมจริงมาก' },
+    { key: 'usability', q: 'การกดเลือกคำตอบในวีดีโอใช้งานง่ายแค่ไหน', hint: '1 = ยากมาก · 5 = ง่ายมาก' },
+    { key: 'time', q: 'เวลา 20 วินาทีต่อข้อเหมาะสมไหม', hint: '1 = ไม่เหมาะ · 5 = เหมาะสมดี' },
+    { key: 'recommend', q: 'จะแนะนำให้หน่วยงานอื่นลองใช้ไหม', hint: '1 = ไม่แนะนำ · 5 = แนะนำแน่นอน' }
+  ];
+  var fbScores = {};
+
+  function buildFeedback() {
+    var wrap = $('#fb-rates');
+    if (wrap.childNodes.length) return;            // สร้างครั้งเดียวพอ
+    FB_QUESTIONS.forEach(function (item) {
+      var row = el('div', 'fbrow');
+      var q = el('div', 'fbrow__q');
+      q.appendChild(document.createTextNode(item.q));
+      q.appendChild(el('small', null, item.hint));
+      row.appendChild(q);
+      var rate = el('div', 'rate');
+      [1, 2, 3, 4, 5].forEach(function (n) {
+        var b = el('button', null, String(n));
+        b.type = 'button';
+        b.setAttribute('aria-label', item.q + ' = ' + n);
+        b.onclick = function () {
+          fbScores[item.key] = n;
+          var all = rate.querySelectorAll('button');
+          for (var i = 0; i < all.length; i++) all[i].classList.toggle('is-on', i < n);
+        };
+        rate.appendChild(b);
+      });
+      row.appendChild(rate);
+      wrap.appendChild(row);
+    });
+  }
+
+  function sendFeedback(e) {
+    if (e) e.preventDefault();
+    var n = $('#fb-status');
+    var val = function (id) { return ($(id).value || '').trim(); };
+    var body = {
+      sessionId: (state.session && state.session.sessionId) || null,
+      callsign: (state.session && state.session.callsign) || '',
+      unit: (state.session && state.session.unit) || '',
+      accessCode: state.code || '',
+      scores: fbScores,
+      like: val('#fb-like'),
+      issue: val('#fb-issue'),
+      suggest: val('#fb-suggest'),
+      name: val('#fb-name'),
+      contact: val('#fb-contact'),
+      finishedGame: !!(state.session && state.session.finishedAt),
+      userAgent: navigator.userAgent,
+      screen: window.innerWidth + 'x' + window.innerHeight,
+      submittedAt: new Date().toISOString()
+    };
+    var empty = !Object.keys(fbScores).length && !body.like && !body.issue && !body.suggest;
+    if (empty) {
+      n.hidden = false;
+      n.className = 'status status--bad';
+      n.textContent = 'ช่วยให้คะแนนอย่างน้อยหนึ่งข้อ หรือเขียนความเห็นสักบรรทัดก่อนส่งครับ';
+      return;
+    }
+    n.hidden = false;
+    n.className = 'status';
+    n.textContent = 'กำลังส่ง…';
+    $('#fb-send').disabled = true;
+
+    var done = function (ok, msg) {
+      n.className = 'status status--' + (ok ? 'ok' : 'bad');
+      n.textContent = msg;
+      $('#fb-send').disabled = !ok ? false : true;
+    };
+    try { localStorage.setItem('aqg.feedback.last', JSON.stringify(body)); } catch (err) {}
+
+    if (!state.backend) {
+      download2('aqg-feedback.json', JSON.stringify(body, null, 2));
+      return done(true, 'ไม่มีเซิร์ฟเวอร์ — บันทึกเป็นไฟล์ให้แล้ว กรุณาส่งไฟล์กลับมาให้ทีมงาน ขอบคุณครับ');
+    }
+    fetch('api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) throw new Error(d.error || 'ส่งไม่สำเร็จ');
+        done(true, 'ส่งเรียบร้อย ขอบคุณมากครับ 🙏 ความเห็นของท่านช่วยให้ต้นแบบนี้ดีขึ้นจริงๆ');
+      })
+      .catch(function (err) {
+        done(false, 'ส่งไม่สำเร็จ (' + esc(err.message || err) + ') — กดส่งอีกครั้งได้');
+      });
+  }
+
+  function download2(name, body) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
+    a.download = name;
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
   }
 
   /* ── persistence / export ─────────────────────────────────────────────── */
@@ -854,6 +961,7 @@
     $('#btn-begin').onclick = begin;
     $('#btn-stage-go').onclick = next;
     $('#btn-login').onclick = doLogin;
+    $('#fb-form').onsubmit = sendFeedback;
     $('#in-code').onkeydown = function (e) { if (e.key === 'Enter') doLogin(); };
     $('#btn-mute').onclick = toggleMute;
     $('#btn-full').onclick = toggleFull;

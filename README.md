@@ -64,6 +64,34 @@ New-NetFirewallRule -DisplayName 'AQG' -Direction Inbound -Protocol TCP -LocalPo
 
 ตรวจความพร้อมก่อนเดโม/ติดตั้ง: `node tools\check.js`
 
+## 1.1 Deploy ขึ้นเซิร์ฟเวอร์ (UAT)
+
+ปลายทาง: **https://aqg-uat.152.42.177.130.sslip.io**
+
+```bash
+bash tools/deploy-uat.sh
+```
+
+สคริปต์จะ rsync โค้ด + วีดีโอไป `/opt/aqg`, สร้าง `.env` พร้อม admin key ให้อัตโนมัติ,
+แล้ว `docker compose up -d --build` และตรวจว่า https ใช้งานได้
+
+| ไฟล์ | ใช้เมื่อ |
+|---|---|
+| `docker-compose.yml` | เซิร์ฟเวอร์**มี Traefik อยู่แล้ว** (แบบเดียวกับ luckydraw) — ค่าเริ่มต้น |
+| `docker-compose.caddy.yml` | เซิร์ฟเวอร์**ยังไม่มี reverse proxy** — Caddy จะขอใบรับรอง HTTPS ให้เอง |
+
+```bash
+COMPOSE=docker-compose.caddy.yml bash tools/deploy-uat.sh   # กรณีไม่มี proxy เดิม
+SKIP_VIDEO=1 bash tools/deploy-uat.sh                        # อัปเฉพาะโค้ด (เร็ว)
+```
+
+* โหมด UAT ตั้ง `AQG_REQUIRE_CODE=0` ไว้ — ลูกค้ากดเล่นได้เลยไม่ต้องมีรหัส
+* `results/` และ `config/` เป็น docker volume จึงไม่หายตอน redeploy
+* วีดีโอ mount จาก `/opt/aqg/video` (ไม่อยู่ใน image เพื่อให้ build เร็ว)
+* ตั้ง `AQG_ADMIN_KEY` ใน `/opt/aqg/.env` — ถ้าไม่ตั้ง คีย์จะสุ่มใหม่ทุกครั้งที่รีสตาร์ต
+
+---
+
 ## 2. โครงสร้างเกม (ตามเอกสาร)
 
 **วีดีโอไทเทิล**: `video/S00-web.mp4` (40 วินาที) — โลโก้ AQG + คำชี้แจงตามเอกสาร (มีซับ)
@@ -77,6 +105,18 @@ New-NetFirewallRule -DisplayName 'AQG' -Direction Inbound -Protocol TCP -LocalPo
 
 Flow: เมนู → LOGIN/ABOUT → **วีดีโอไทเทิล+คำชี้แจง (S00)** → หน้ากฎการเล่น → การ์ดบรีฟด่าน → **วีดีโอด่าน (จุดตัดสินใจฝังอยู่)**
 → …ครบ 3 ด่าน → **Result Screen** (จุดเปิดเผยผลจุดเดียวของเกม)
+
+---
+
+## 2.1 หน้าสุดท้าย: ความคิดเห็น (UAT)
+
+หลังหน้าผล มีปุ่ม **“ให้ความคิดเห็น”** เข้าสู่หน้าฟอร์ม — ให้คะแนน 6 ข้อ (1–5)
+ภาพรวม · เข้าใจง่าย · สมจริง · ใช้งานง่าย · เวลา 20 วินาที · จะแนะนำต่อ
+พร้อมช่องเขียน: ชอบอะไร / เจอปัญหาอะไร / อยากให้เพิ่มอะไร และช่องติดต่อกลับ (ไม่บังคับ)
+
+* ส่งเข้า `POST /api/feedback` → เก็บที่ `results/feedback.jsonl`
+* ถ้าไม่มีเซิร์ฟเวอร์ ระบบจะดาวน์โหลดเป็นไฟล์ JSON ให้ส่งกลับมาแทน
+* ดูผลรวมได้ที่หน้าหลังบ้าน `admin.html` (ค่าเฉลี่ยรายข้อ + ความเห็นทั้งหมด + ผู้ที่ขอให้ติดต่อกลับ)
 
 ---
 

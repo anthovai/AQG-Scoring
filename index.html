@@ -145,6 +145,48 @@
   <div class="result" id="result"></div>
 </section>
 
+<!-- ══════════ FEEDBACK (หน้าสุดท้าย) ══════════ -->
+<section class="screen screen--scroll" id="screen-feedback" data-screen="feedback">
+  <div class="bg bg--dim" style="background-image:url('assets/bg-hud.jpg')"></div>
+  <div class="result">
+    <div class="result__head">
+      <p class="result__eyebrow">UAT — ช่วยกันทำให้ดีขึ้น</p>
+      <h1 class="result__h">ความคิดเห็นของท่าน</h1>
+      <p class="result__meta">ใช้เวลาไม่ถึง 1 นาที · ทุกข้อไม่บังคับ · ข้อมูลใช้เพื่อพัฒนาต้นแบบเท่านั้น</p>
+    </div>
+
+    <form class="card" id="fb-form" autocomplete="off">
+      <div class="fb__rows" id="fb-rates"></div>
+
+      <label class="field"><span>ชอบอะไรมากที่สุด</span>
+        <textarea id="fb-like" rows="2" placeholder="เช่น ภาพสวย เข้าใจง่าย สถานการณ์สมจริง"></textarea>
+      </label>
+      <label class="field"><span>เจอปัญหาหรือติดขัดตรงไหนบ้าง</span>
+        <textarea id="fb-issue" rows="2" placeholder="เช่น วีดีโอสะดุด กดไม่ติด อ่านตัวเลือกไม่ทัน"></textarea>
+      </label>
+      <label class="field"><span>อยากให้เพิ่ม/แก้อะไร</span>
+        <textarea id="fb-suggest" rows="2" placeholder="ข้อเสนอแนะ"></textarea>
+      </label>
+
+      <div class="fb__grid">
+        <label class="field"><span>ชื่อ / หน่วยงาน (ไม่บังคับ)</span>
+          <input id="fb-name" type="text" placeholder="เพื่อให้เราติดต่อกลับได้" />
+        </label>
+        <label class="field"><span>อีเมล หรือเบอร์ติดต่อ (ไม่บังคับ)</span>
+          <input id="fb-contact" type="text" placeholder="ถ้าต้องการให้ติดต่อกลับ" />
+        </label>
+      </div>
+
+      <p class="status" id="fb-status" hidden></p>
+      <div class="row">
+        <button class="btn btn--primary" type="submit" id="fb-send">ส่งความคิดเห็น</button>
+        <button class="btn" type="button" data-go="result">ย้อนกลับไปดูผล</button>
+        <button class="btn" type="button" data-go="menu">กลับหน้าแรก</button>
+      </div>
+    </form>
+  </div>
+</section>
+
 <script src="data/game.js"></script>
 <script src="app.js"></script>
 </body>

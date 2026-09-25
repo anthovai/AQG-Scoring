@@ -1,0 +1,52 @@
+# AQG UAT — https://aqg-uat.152.42.177.130.sslip.io
+#
+# ไฟล์นี้เตรียมมาให้ครบทั้ง 2 แบบ เลือกใช้ตามที่เซิร์ฟเวอร์มีอยู่แล้ว:
+#
+#   แบบ A (ค่าเริ่มต้น) — เซิร์ฟเวอร์มี Traefik อยู่แล้ว เช่นเดียวกับ luckydraw
+#       ตรวจชื่อ network ของ Traefik ด้วย:  docker network ls
+#       ถ้าไม่ได้ชื่อ "web" ให้แก้ตรง networks ด้านล่าง
+#
+#   แบบ B — ยังไม่มี reverse proxy: ใช้ไฟล์ docker-compose.caddy.yml แทน
+#       docker compose -f docker-compose.caddy.yml up -d
+#       (Caddy จะขอใบรับรอง HTTPS ให้อัตโนมัติ)
+
+services:
+  aqg:
+    build: .
+    image: aqg:uat
+    container_name: aqg-uat
+    restart: unless-stopped
+    environment:
+      PORT: "5190"
+      # UAT: ให้ลูกค้ากดเล่นได้เลย ไม่ต้องมีรหัส
+      AQG_REQUIRE_CODE: "0"
+      # เปลี่ยนเป็นคีย์ของท่านก่อนขึ้นจริง (ถ้าไม่ตั้ง ระบบจะสุ่มใหม่ทุกครั้งที่รีสตาร์ต
+      # ซึ่งจะเข้าหลังบ้านไม่ได้จนกว่าจะไปดู log)
+      AQG_ADMIN_KEY: "${AQG_ADMIN_KEY:?ต้องตั้ง AQG_ADMIN_KEY ใน .env ก่อน}"
+    volumes:
+      # วีดีโอ 261 MB — ไม่ใส่ใน image เพื่อให้ build เร็วและ redeploy ไม่ต้องอัปใหม่
+      - ./video:/app/video:ro
+      # ผลการประเมิน + ความคิดเห็น ต้องอยู่รอดตอน redeploy
+      - aqg-results:/app/results
+      - aqg-config:/app/config
+    networks: [web]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "web"
+      traefik.http.routers.aqg-uat.rule: "Host(`aqg-uat.152.42.177.130.sslip.io`)"
+      traefik.http.routers.aqg-uat.entrypoints: "websecure"
+      traefik.http.routers.aqg-uat.tls.certresolver: "letsencrypt"
+      traefik.http.services.aqg-uat.loadbalancer.server.port: "5190"
+      # บังคับ http -> https
+      traefik.http.routers.aqg-uat-http.rule: "Host(`aqg-uat.152.42.177.130.sslip.io`)"
+      traefik.http.routers.aqg-uat-http.entrypoints: "web"
+      traefik.http.routers.aqg-uat-http.middlewares: "aqg-https"
+      traefik.http.middlewares.aqg-https.redirectscheme.scheme: "https"
+
+volumes:
+  aqg-results:
+  aqg-config:
+
+networks:
+  web:
+    external: true

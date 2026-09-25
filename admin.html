@@ -66,6 +66,12 @@
   </div>
 
   <div class="card">
+    <h2 class="card__h">ความคิดเห็นจากผู้ทดลองใช้ (UAT)</h2>
+    <p class="card__note" id="fb-summary">ยังไม่มีความคิดเห็น</p>
+    <div id="fb-list"></div>
+  </div>
+
+  <div class="card">
     <h2 class="card__h">รายการ session</h2>
     <p class="card__note">คลิกที่แถวเพื่อดูการตัดสินใจทั้ง 6 ข้อ</p>
     <table class="logtable" id="tbl">
@@ -132,6 +138,7 @@
     }).join('');
 
     renderUnits(S);
+    loadFeedback();
 
     var tb = $('#tbl tbody');
     tb.innerHTML = '';
@@ -152,6 +159,45 @@
       tb.appendChild(tr);
     });
   }
+  function loadFeedback() {
+    fetch('/api/feedback?key=' + encodeURIComponent(key()))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) return;
+        var F = d.feedback || [];
+        var keys = ['overall', 'clarity', 'realism', 'usability', 'time', 'recommend'];
+        var label = { overall:'ภาพรวม', clarity:'เข้าใจง่าย', realism:'สมจริง',
+                      usability:'ใช้งานง่าย', time:'เวลา 20 วิ', recommend:'จะแนะนำต่อ' };
+        var means = keys.map(function (k) {
+          var v = F.map(function (f) { return (f.scores || {})[k]; })
+                   .filter(function (x) { return typeof x === 'number'; });
+          return label[k] + ' ' + (v.length
+            ? (v.reduce(function (a, b) { return a + b; }, 0) / v.length).toFixed(2) + '/5 (n=' + v.length + ')'
+            : '—');
+        });
+        $('#fb-summary').textContent = F.length
+          ? F.length + ' ความคิดเห็น · ' + means.join(' · ')
+          : 'ยังไม่มีความคิดเห็น';
+        $('#fb-list').innerHTML = F.map(function (f) {
+          var sc = keys.filter(function (k) { return (f.scores || {})[k]; })
+            .map(function (k) { return label[k] + ' ' + f.scores[k]; }).join(' · ');
+          var txt = ['like','issue','suggest'].map(function (k) {
+            var t = { like:'ชอบ', issue:'ปัญหา', suggest:'ข้อเสนอแนะ' }[k];
+            return f[k] ? '<p class="tagrow__advice"><b>' + t + ':</b> ' + esc(f[k]) + '</p>' : '';
+          }).join('');
+          var who = [f.name, f.contact, f.unit, f.callsign].filter(Boolean).map(esc).join(' · ');
+          return '<div class="tagrow"><div class="tagrow__dim">' +
+            new Date(f.receivedAt || f.submittedAt).toLocaleString('th-TH') +
+            '<div class="tagrow__id" style="margin:0">' + esc(f.id || '') +
+            (f.finishedGame ? ' · เล่นจบ' : ' · ไม่จบเกม') + '</div></div><div>' +
+            (sc ? '<p class="tagrow__tag">' + esc(sc) + '</p>' : '') + txt +
+            (who ? '<p class="tagrow__advice" style="color:var(--amber)">' + who + '</p>' : '') +
+            '</div></div>';
+        }).join('') || '';
+      })
+      .catch(function () {});
+  }
+
   function renderUnits(S) {
     var AQ = DIMS.slice(0, 4).map(function (d) { return d.key; });
     var GR = DIMS.slice(4).map(function (d) { return d.key; });

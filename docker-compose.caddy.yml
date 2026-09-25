@@ -1,0 +1,48 @@
+# AQG UAT — แบบที่ยังไม่มี reverse proxy บนเซิร์ฟเวอร์
+# Caddy จะขอใบรับรอง HTTPS ให้เองอัตโนมัติ (ต้องเปิดพอร์ต 80 และ 443)
+#
+#   docker compose -f docker-compose.caddy.yml up -d --build
+#
+# ถ้าพอร์ต 80/443 ถูกใช้อยู่แล้ว (มี proxy ตัวอื่น) ให้ใช้ docker-compose.yml แทน
+
+services:
+  aqg:
+    build: .
+    image: aqg:uat
+    container_name: aqg-uat
+    restart: unless-stopped
+    environment:
+      PORT: "5190"
+      AQG_REQUIRE_CODE: "0"
+      AQG_ADMIN_KEY: "${AQG_ADMIN_KEY:?ต้องตั้ง AQG_ADMIN_KEY ใน .env ก่อน}"
+    volumes:
+      - ./video:/app/video:ro
+      - aqg-results:/app/results
+      - aqg-config:/app/config
+    networks: [aqgnet]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: aqg-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command: >
+      caddy reverse-proxy
+      --from aqg-uat.152.42.177.130.sslip.io
+      --to aqg:5190
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [aqg]
+    networks: [aqgnet]
+
+volumes:
+  aqg-results:
+  aqg-config:
+  caddy-data:
+  caddy-config:
+
+networks:
+  aqgnet:
