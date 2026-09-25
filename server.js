@@ -14,7 +14,8 @@
 
    node server.js [port]
      PORT            default 5190
-     AQG_ADMIN_KEY   admin key for the /api/sessions* reads (default aqg-admin)
+     AQG_ADMIN_KEY   admin key for the /api/sessions* reads
+                     (unset = a random key is generated and printed at startup)
      AQG_REQUIRE_CODE=1  players must enter a valid access code to start
      AQG_DEV=1       enables POST /_shot (frame dumps used to calibrate cues)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -23,11 +24,16 @@ var http = require('http');
 var fs = require('fs');
 var path = require('path');
 var zlib = require('zlib');
+var crypto = require('crypto');
 
 var ROOT = __dirname;
 var PORT = Number(process.argv[2] || process.env.PORT || 5190);
 var DEV = process.env.AQG_DEV === '1';
-var ADMIN_KEY = process.env.AQG_ADMIN_KEY || 'aqg-admin';
+/* No guessable default: without AQG_ADMIN_KEY a fresh random key is generated
+   per start and printed below, so an unconfigured instance never ships with a
+   key that anyone could read out of this repository. */
+var ADMIN_KEY = process.env.AQG_ADMIN_KEY || crypto.randomBytes(12).toString('hex');
+var ADMIN_KEY_GENERATED = !process.env.AQG_ADMIN_KEY;
 var REQUIRE_CODE = process.env.AQG_REQUIRE_CODE === '1';
 
 var RESULTS_DIR = path.join(ROOT, 'results');
@@ -344,7 +350,11 @@ http.createServer(function (req, res) {
   serveStatic(req, res, p);
 }).listen(PORT, function () {
   console.log('AQG prototype  →  http://localhost:' + PORT);
-  console.log('admin          →  http://localhost:' + PORT + '/admin.html  (key: ' + ADMIN_KEY + ')');
+  console.log('admin          →  http://localhost:' + PORT + '/admin.html');
+  console.log('admin key      →  ' + ADMIN_KEY +
+    (ADMIN_KEY_GENERATED
+      ? '   (สุ่มใหม่ทุกครั้งที่รัน — ตั้ง AQG_ADMIN_KEY เพื่อใช้คีย์เดิมทุกครั้ง)'
+      : '   (จาก AQG_ADMIN_KEY)'));
   console.log('serving ' + ROOT +
     (REQUIRE_CODE ? '  [require access code]' : '') +
     (DEV ? '  [dev /_shot]' : ''));
