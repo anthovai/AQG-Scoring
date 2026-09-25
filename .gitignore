@@ -1,0 +1,20 @@
+# ผลการประเมินของผู้เล่นจริง — ข้อมูลบุคคล ไม่ควรขึ้น repo
+results/
+
+# เฟรมที่ dump ไว้ตอน calibrate cue (สร้างใหม่ได้)
+tools/shots/
+
+# วีดีโอ (ต้นฉบับ 250-640 MB/ไฟล์ · รุ่นเว็บ 50-140 MB/ไฟล์)
+video/*.mp4
+
+node_modules/
+*.log
+Thumbs.db
+desktop.ini
+
+# python cache
+__pycache__/
+*.pyc
+
+# รหัสเข้าเล่นจริง (เซิร์ฟเวอร์สร้างไฟล์ตัวอย่างให้เองตอนรันครั้งแรก)
+config/access-codes.json

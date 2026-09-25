@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AQG — AQ/GRIT Situational Assessment</title>
+<link rel="stylesheet" href="styles.css" />
+<!-- Kanit/Sarabun are a nicety: loaded non-blocking so a closed network (no
+     route to Google) never delays first paint — Windows Thai fonts take over -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;500;700&family=Sarabun:wght@400;600&display=swap" />
+</head>
+<body>
+
+<!-- ══════════ S00 : MAIN MENU ══════════ -->
+<section class="screen is-active" id="screen-menu" data-screen="menu">
+  <div class="bg" style="background-image:url('assets/bg-stage1.jpg')"></div>
+  <div class="menu">
+    <p class="menu__eyebrow">AQ &amp; GRIT SITUATIONAL ASSESSMENT — PROTOTYPE</p>
+    <h1 class="menu__title"><img src="assets/logo.png" alt="AQG" /></h1>
+    <p class="menu__sub" id="menu-sub"></p>
+    <div class="menu__btns">
+      <button class="btn btn--primary" data-go="intro">START</button>
+      <button class="btn" data-go="login">LOGIN</button>
+      <button class="btn" data-go="about">ABOUT</button>
+    </div>
+    <p class="menu__struct" id="menu-struct"></p>
+  </div>
+</section>
+
+<!-- ══════════ LOGIN ══════════ -->
+<section class="screen" id="screen-login" data-screen="login">
+  <div class="bg bg--dim" style="background-image:url('assets/bg-menu.jpg')"></div>
+  <div class="panel">
+    <h2 class="panel__h">เข้าสู่ระบบผู้เล่น</h2>
+    <p class="panel__note" id="login-note">ใช้ผูกผลการประเมินกับผู้เล่น</p>
+
+    <label class="field" id="field-code"><span>รหัสเข้าเล่น (access code)</span>
+      <input id="in-code" type="text" autocomplete="off" placeholder="เช่น AQG-001" />
+    </label>
+    <label class="field"><span>รหัส / นามเรียกขาน</span>
+      <input id="in-callsign" type="text" autocomplete="off" placeholder="เช่น ว2-001" />
+    </label>
+    <label class="field"><span>หน่วย / สังกัด</span>
+      <input id="in-unit" type="text" autocomplete="off" placeholder="เช่น ร.๑ พัน.๑" />
+    </label>
+
+    <p class="status" id="login-status" hidden></p>
+    <div class="row">
+      <button class="btn btn--primary" id="btn-login">ยืนยัน</button>
+      <button class="btn" data-go="menu">ย้อนกลับ</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ ABOUT ══════════ -->
+<section class="screen" id="screen-about" data-screen="about">
+  <div class="bg bg--dim" style="background-image:url('assets/bg-hud.jpg')"></div>
+  <div class="panel panel--wide">
+    <h2 class="panel__h">เกี่ยวกับเครื่องมือนี้</h2>
+    <div class="prose" id="about-body"></div>
+    <div class="row"><button class="btn" data-go="menu">ย้อนกลับ</button></div>
+  </div>
+</section>
+
+<!-- ══════════ S00 : TITLE / INTRO VIDEO ══════════ -->
+<section class="screen screen--black" id="screen-title" data-screen="title">
+  <video id="video-title" playsinline preload="metadata"></video>
+  <div class="vidbar">
+    <span class="vidbar__label">AQG — คำชี้แจงก่อนเริ่ม</span>
+    <span class="vidbar__time" id="title-time">0:00</span>
+    <button class="btn btn--ghost" id="btn-title-skip">ข้ามอินโทร ▸</button>
+  </div>
+</section>
+
+<!-- ══════════ INTRODUCTION ══════════ -->
+<section class="screen" id="screen-intro" data-screen="intro">
+  <div class="bg bg--dim" style="background-image:url('assets/bg-title.jpg')"></div>
+  <div class="panel panel--wide">
+    <h2 class="panel__h">คำชี้แจงก่อนเริ่ม</h2>
+    <div class="prose" id="intro-body"></div>
+    <ul class="rules" id="intro-rules"></ul>
+    <div class="row">
+      <button class="btn btn--primary" id="btn-begin">เริ่มภารกิจ</button>
+      <button class="btn" data-go="menu">ย้อนกลับ</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ STAGE BRIEFING CARD ══════════ -->
+<section class="screen" id="screen-stagecard" data-screen="stagecard">
+  <div class="bg bg--dim" id="sc-bg"></div>
+  <div class="stagecard">
+    <p class="stagecard__no" id="sc-no"></p>
+    <h2 class="stagecard__title" id="sc-title"></h2>
+    <p class="stagecard__sub" id="sc-sub"></p>
+    <p class="stagecard__measures" id="sc-measures"></p>
+    <div class="stagecard__brief" id="sc-brief"></div>
+    <button class="btn btn--primary" id="btn-stage-go">เข้าสู่สถานการณ์</button>
+    <p class="hint hint--block">ตัวเลือกจะปรากฏในวีดีโอ — แตะการ์ดที่ต้องการเพื่อเลือก</p>
+  </div>
+</section>
+
+<!-- ══════════ VIDEO + INTERACTIVE DECISION LAYER ══════════ -->
+<section class="screen screen--black" id="screen-video" data-screen="video">
+  <video id="video" playsinline preload="metadata"></video>
+
+  <!-- clickable option layer, positioned over the video picture -->
+  <div class="qlayer" id="qlayer" hidden></div>
+
+  <header class="hud" id="hud" hidden>
+    <div class="hud__left">
+      <span class="hud__tag" id="q-stage"></span>
+      <span class="hud__beat" id="q-beat"></span>
+    </div>
+    <div class="hud__right">
+      <span class="hud__prog" id="q-prog"></span>
+      <div class="timer" id="timer">
+        <svg viewBox="0 0 44 44" aria-hidden="true">
+          <circle class="timer__track" cx="22" cy="22" r="19"></circle>
+          <circle class="timer__arc" cx="22" cy="22" r="19" id="timer-arc"></circle>
+        </svg>
+        <span class="timer__num" id="timer-num">20</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="spinner" id="spinner" hidden><span></span><p>กำลังโหลดวีดีโอ…</p></div>
+
+  <div class="vidbar">
+    <span class="vidbar__label" id="vid-label"></span>
+    <span class="vidbar__time" id="vid-time">0:00</span>
+    <button class="btn btn--ghost btn--icon" id="btn-mute" title="ปิด/เปิดเสียง (M)">เสียง</button>
+    <button class="btn btn--ghost btn--icon" id="btn-full" title="เต็มจอ (F)">เต็มจอ</button>
+    <button class="btn btn--ghost" id="btn-vid-skip">ข้ามไปจุดตัดสินใจ ▸</button>
+  </div>
+  <div class="vidnote" id="vid-note"></div>
+  <div class="toast" id="toast"></div>
+</section>
+
+<!-- ══════════ RESULT ══════════ -->
+<section class="screen screen--scroll" id="screen-result" data-screen="result">
+  <div class="bg bg--dim" style="background-image:url('assets/bg-result.jpg')"></div>
+  <div class="result" id="result"></div>
+</section>
+
+<script src="data/game.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

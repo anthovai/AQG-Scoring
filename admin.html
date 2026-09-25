@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AQG — หลังบ้าน (ผลการประเมินรวม)</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;500;700&family=Sarabun:wght@400;600&display=swap" />
+<style>
+  body{overflow:auto; background:#070b0e}
+  .admin{max-width:1220px; margin:0 auto; padding:40px 24px 90px}
+  .admin__head{display:flex; align-items:flex-end; gap:18px; flex-wrap:wrap; margin-bottom:26px}
+  .admin__head h1{margin:0; font-size:28px; font-weight:500}
+  .admin__head p{margin:2px 0 0; color:var(--ink-faint); font-size:14px}
+  .admin__key{margin-left:auto; display:flex; gap:10px; align-items:center}
+  .admin__key input{
+    padding:9px 12px; border-radius:9px; border:1px solid var(--line-2);
+    background:rgba(0,0,0,.4); color:var(--ink); width:180px;
+  }
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:22px}
+  .stat{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px}
+  .stat b{display:block; font-family:"Kanit",sans-serif; font-size:26px; font-weight:500}
+  .stat span{color:var(--ink-faint); font-size:12.5px; letter-spacing:.06em}
+  .dimgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px}
+  .dimgrid .bar__name{font-size:13.5px}
+  td.num{text-align:right; font-variant-numeric:tabular-nums}
+  tr.is-open{background:rgba(232,163,61,.06)}
+  .rowbtn{cursor:pointer}
+  .detail td{background:rgba(0,0,0,.35)}
+  .detail table{margin:6px 0 10px}
+  .empty{color:var(--ink-faint); padding:26px 0}
+</style>
+</head>
+<body>
+<div class="admin">
+  <div class="admin__head">
+    <div>
+      <h1>AQG — ผลการประเมินรวม</h1>
+      <p id="sub">หลังบ้านสำหรับผู้ดูแลการทดลอง · ข้อมูลจาก <code>results/sessions.jsonl</code></p>
+    </div>
+    <div class="admin__key">
+      <input id="key" type="password" placeholder="admin key" autocomplete="off" />
+      <button class="btn btn--primary" id="load">โหลดข้อมูล</button>
+      <button class="btn" id="csv">CSV ทั้งหมด</button>
+    </div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card">
+    <h2 class="card__h">ค่าเฉลี่ยรายมิติ (ทุก session)</h2>
+    <p class="card__note">คะแนน 1–5 · GRIT-Perseverance คือ anchor ที่มีน้ำหนักพยากรณ์สูงสุด</p>
+    <div class="dimgrid" id="dims"></div>
+  </div>
+
+  <div class="card">
+    <h2 class="card__h">รายการ session</h2>
+    <p class="card__note">คลิกที่แถวเพื่อดูการตัดสินใจทั้ง 6 ข้อ</p>
+    <table class="logtable" id="tbl">
+      <thead><tr>
+        <th>session</th><th>ผู้เล่น</th><th>หน่วย</th><th>รหัส</th><th>โหมด</th>
+        <th class="num">ข้อ</th><th class="num">หมดเวลา</th><th class="num">เฉลี่ย</th><th>เสร็จเมื่อ</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="empty" id="empty" hidden>ยังไม่มีข้อมูล — เล่นให้จบหนึ่งรอบแล้วกดโหลดข้อมูลอีกครั้ง</p>
+  </div>
+</div>
+
+<script src="data/game.js"></script>
+<script>
+(function () {
+  'use strict';
+  var DIMS = window.AQG_DATA.meta.dimensions;
+  var $ = function (s) { return document.querySelector(s); };
+  var KEYSTORE = 'aqg.adminkey';
+  try { $('#key').value = localStorage.getItem(KEYSTORE) || ''; } catch (e) {}
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function key() { return $('#key').value.trim(); }
+
+  function load() {
+    try { localStorage.setItem(KEYSTORE, key()); } catch (e) {}
+    fetch('/api/sessions?key=' + encodeURIComponent(key()))
+      .then(function (r) { return r.json(); })
+      .then(render)
+      .catch(function (e) { alert('โหลดไม่สำเร็จ: ' + e); });
+  }
+
+  function render(d) {
+    if (!d.ok) { alert(d.error || 'admin key ไม่ถูกต้อง'); return; }
+    var S = d.sessions || [];
+    $('#empty').hidden = S.length > 0;
+
+    var done = S.filter(function (s) { return s.decisions === 6; });
+    var timeouts = S.reduce(function (a, s) { return a + s.timeouts; }, 0);
+    var avg = done.length
+      ? (done.reduce(function (a, s) { return a + s.avg; }, 0) / done.length).toFixed(2) : '—';
+    $('#stats').innerHTML =
+      stat(S.length, 'session ทั้งหมด') +
+      stat(done.length, 'ทำครบ 6 ข้อ') +
+      stat(timeouts, 'ข้อที่หมดเวลา') +
+      stat(avg, 'คะแนนเฉลี่ยรวม (1–5)');
+
+    $('#dims').innerHTML = DIMS.map(function (dim) {
+      var vals = S.map(function (s) { return s.dimensions[dim.key]; })
+                  .filter(function (v) { return typeof v === 'number'; });
+      var m = vals.length ? vals.reduce(function (a, b) { return a + b; }, 0) / vals.length : 0;
+      return '<div class="bar' + (dim.anchor ? ' bar--anchor' : '') + '">' +
+        '<div class="bar__top"><span class="bar__name">' + esc(dim.key) +
+        (dim.anchor ? ' <span class="pill">anchor</span>' : '') + '</span>' +
+        '<span class="bar__score"><b>' + (vals.length ? m.toFixed(2) : '—') + '</b><span>/5</span></span></div>' +
+        '<div class="bar__track"><div class="bar__fill" style="width:' + (m / 5 * 100) + '%"></div></div>' +
+        '<p class="card__note" style="margin:6px 0 0">n = ' + vals.length + '</p></div>';
+    }).join('');
+
+    var tb = $('#tbl tbody');
+    tb.innerHTML = '';
+    S.forEach(function (s) {
+      var tr = document.createElement('tr');
+      tr.className = 'rowbtn';
+      tr.innerHTML =
+        '<td class="mono">' + esc(s.sessionId) + '</td>' +
+        '<td>' + esc(s.callsign || '—') + '</td>' +
+        '<td>' + esc(s.unit || '—') + '</td>' +
+        '<td class="mono">' + esc(s.accessCode || '—') + '</td>' +
+        '<td>' + esc(s.mode || '—') + '</td>' +
+        '<td class="num">' + s.decisions + '/6</td>' +
+        '<td class="num">' + s.timeouts + '</td>' +
+        '<td class="num">' + s.avg.toFixed(2) + '</td>' +
+        '<td>' + (s.finishedAt ? new Date(s.finishedAt).toLocaleString('th-TH') : '—') + '</td>';
+      tr.onclick = function () { toggle(tr, s.sessionId); };
+      tb.appendChild(tr);
+    });
+  }
+  function stat(v, label) {
+    return '<div class="stat"><b>' + esc(v) + '</b><span>' + esc(label) + '</span></div>';
+  }
+
+  function toggle(tr, id) {
+    if (tr.nextSibling && tr.nextSibling.classList && tr.nextSibling.classList.contains('detail')) {
+      tr.nextSibling.remove();
+      tr.classList.remove('is-open');
+      return;
+    }
+    fetch('/api/session?key=' + encodeURIComponent(key()) + '&id=' + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) return alert(d.error);
+        var s = d.session;
+        var rows = (s.decisions || []).map(function (x) {
+          return '<tr><td class="mono">' + esc(x.questionId) + '</td><td>' + esc(x.dimension) +
+            '</td><td class="mono">' + esc(x.choiceId || '—') + '</td><td>' +
+            esc(x.displayedPosition || '—') + '</td><td class="num">' + x.score +
+            '</td><td class="num">' + x.responseTimeMs + '</td><td>' +
+            (x.timedOut ? 'หมดเวลา' : '—') + '</td></tr>';
+        }).join('');
+        var td = document.createElement('tr');
+        td.className = 'detail';
+        td.innerHTML = '<td colspan="9"><table class="logtable"><thead><tr>' +
+          '<th>question</th><th>dimension</th><th>choice_id</th><th>slot</th>' +
+          '<th class="num">score</th><th class="num">ms</th><th>สถานะ</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table></td>';
+        tr.classList.add('is-open');
+        tr.parentNode.insertBefore(td, tr.nextSibling);
+      });
+  }
+
+  $('#load').onclick = load;
+  $('#key').onkeydown = function (e) { if (e.key === 'Enter') load(); };
+  $('#csv').onclick = function () {
+    location.href = '/api/sessions.csv?key=' + encodeURIComponent(key());
+  };
+  if (key()) load();
+})();
+</script>
+</body>
+</html>
