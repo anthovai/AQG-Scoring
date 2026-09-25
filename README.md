@@ -45,6 +45,12 @@ un-forever.ps1 -Register        # เริ่มเองทุกครั้�
 ยกเลิกด้วย `-Unregister` · log เหตุการณ์อยู่ที่ `logs\server.log` (เปิดอ่านได้ระหว่างรัน)
 ปลายทางสำรองเปลี่ยนได้ด้วย `-Dest "D:ackupqg"`
 
+### ไฟล์วีดีโอ
+
+วีดีโอไม่ได้อยู่ใน repo (ใหญ่เกิน) — ดาวน์โหลดจาก
+**[Releases → v1.0-video](https://github.com/anthovai/AQG-Scoring/releases/tag/v1.0-video)**
+แล้ววางไว้ในโฟลเดอร์ `video/` (S00-web.mp4, S01-web.mp4, S02-web.mp4, S03-web.mp4)
+
 > **ข้อควรรู้**: พาธโปรเจกต์มีอักษรไทย ซึ่ง Windows PowerShell 5.1 ส่งผ่าน `-File` ไม่ได้
 > สคริปต์จึงลงทะเบียนงานด้วย `-EncodedCommand` และใช้ shortcut (.lnk) แทนไฟล์ .cmd
 
