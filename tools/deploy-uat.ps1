@@ -39,12 +39,17 @@ Write-Host "  เชื่อมต่อได้ + มี docker" -ForegroundC
 Step 'แพ็กโค้ด'
 $tar = Join-Path $env:TEMP 'aqg-deploy.tar.gz'
 if (Test-Path $tar) { Remove-Item $tar -Force }
-& tar -czf $tar `
-  --exclude='./results' --exclude='./logs' --exclude='./.git' `
-  --exclude='./video' --exclude='./tools/shots' --exclude='./config/admin-key.txt' `
-  --exclude='./node_modules' --exclude='*.pdf' `
-  -C $root .
-if ($LASTEXITCODE -ne 0) { Fail 'แพ็กโค้ดไม่สำเร็จ' }
+# tar.exe รับพาธภาษาไทยเป็น argument ไม่ได้ (จะขึ้น could not chdir)
+# จึงย้าย working directory ด้วย PowerShell แล้วใช้ "." ล้วนๆ
+Push-Location $root
+try {
+  & tar -czf $tar `
+    --exclude=./results --exclude=./logs --exclude=./.git `
+    --exclude=./video --exclude=./tools/shots --exclude=./config/admin-key.txt `
+    --exclude=./node_modules --exclude=*.pdf `
+    .
+} finally { Pop-Location }
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $tar)) { Fail 'แพ็กโค้ดไม่สำเร็จ' }
 Write-Host ("  {0:N1} MB" -f ((Get-Item $tar).Length / 1MB)) -ForegroundColor Green
 
 # ── 2. ส่งขึ้นเซิร์ฟเวอร์ + แตกไฟล์ ──────────────────────────────────────────
@@ -70,7 +75,9 @@ if (-not $SkipVideo) {
       continue
     }
     Write-Host ("  อัป {0} ({1:N0} MB) — รอสักครู่" -f $f.Name, ($f.Length / 1MB))
-    & scp -q $f.FullName "$ServerHost`:$Dir/video/"
+    # scp ก็รับพาธไทยไม่ได้เหมือนกัน — ย้าย cwd แล้วใช้ชื่อไฟล์ล้วน
+    Push-Location (Join-Path $root 'video')
+    try { & scp -q $f.Name "$ServerHost`:$Dir/video/" } finally { Pop-Location }
     if ($LASTEXITCODE -ne 0) { Fail "อัป $($f.Name) ไม่สำเร็จ" }
   }
 }
