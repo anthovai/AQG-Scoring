@@ -10,6 +10,7 @@
         POST /api/sessions               → store one finished session
         GET  /api/sessions?key=…         → list sessions      (admin)
         GET  /api/sessions.csv?key=…     → one CSV of every decision (admin)
+        GET  /api/sessions-wide.csv?key=… → 1 row per session, 6 dims as columns
         GET  /api/session?id=…&key=…     → one full session   (admin)
 
    node server.js [port]
@@ -142,6 +143,31 @@ function sessionToCSV(s) {
     }).join(',');
   }).join('\r\n');
 }
+/* CSV แบบกว้าง: 1 แถว = 1 session, 6 มิติเป็นคอลัมน์ — เปิดใน SPSS/R/Excel ได้ตรงๆ
+   ค่าที่หมดเวลาเว้นว่างไว้ (missing) ไม่ใส่ 0 */
+var DIM_KEYS = ['AQ-Control', 'AQ-Ownership', 'AQ-Reach', 'AQ-Endurance',
+  'GRIT-Passion', 'GRIT-Perseverance'];
+var WIDE_COLS = ['sessionId', 'callsign', 'unit', 'accessCode', 'mode',
+  'startedAt', 'finishedAt', 'decisions', 'timeouts', 'avgScored']
+  .concat(DIM_KEYS.map(function (k) { return k.replace(/[^A-Za-z]/g, '_'); }))
+  .concat(DIM_KEYS.map(function (k) { return k.replace(/[^A-Za-z]/g, '_') + '_choice'; }))
+  .concat(DIM_KEYS.map(function (k) { return k.replace(/[^A-Za-z]/g, '_') + '_ms'; }));
+
+function sessionToWideRow(s) {
+  var byDim = {};
+  (s.decisions || []).forEach(function (d) { byDim[d.dimension] = d; });
+  var sum = summarise(s);
+  var row = [s.sessionId, s.callsign, s.unit, s.accessCode, s.mode,
+    s.startedAt, s.finishedAt, sum.decisions, sum.timeouts, sum.avg];
+  DIM_KEYS.forEach(function (k) {
+    var d = byDim[k];
+    row.push(d && typeof d.score === 'number' ? d.score : '');
+  });
+  DIM_KEYS.forEach(function (k) { row.push((byDim[k] || {}).choiceId || ''); });
+  DIM_KEYS.forEach(function (k) { row.push((byDim[k] || {}).responseTimeMs || ''); });
+  return row.map(csvCell).join(',');
+}
+
 function saveSession(s) {
   fs.mkdirSync(RESULTS_DIR, { recursive: true });
   var id = safeId(s.sessionId || ('AQG-' + Date.now()));
@@ -168,7 +194,9 @@ function allSessions() {
 function summarise(s) {
   var dims = {};
   (s.decisions || []).forEach(function (d) { dims[d.dimension] = d.score; });
-  var scores = (s.decisions || []).map(function (d) { return d.score; });
+  /* ข้อที่หมดเวลามี score = null (missing data) ไม่นับในค่าเฉลี่ย */
+  var scores = (s.decisions || []).map(function (d) { return d.score; })
+    .filter(function (v) { return typeof v === 'number'; });
   return {
     sessionId: s.sessionId,
     callsign: s.callsign || '',
@@ -179,7 +207,8 @@ function summarise(s) {
     finishedAt: s.finishedAt,
     decisions: (s.decisions || []).length,
     timeouts: (s.decisions || []).filter(function (d) { return d.timedOut; }).length,
-    avg: scores.length ? +(scores.reduce(function (a, b) { return a + b; }, 0) / scores.length).toFixed(2) : 0,
+    avg: scores.length ? +(scores.reduce(function (a, b) { return a + b; }, 0) / scores.length).toFixed(2) : null,
+    scored: scores.length,
     dimensions: dims
   };
 }
@@ -228,7 +257,8 @@ function api(req, res, p, q) {
   }
 
   /* everything below is admin-only */
-  if (p === '/api/sessions' || p === '/api/sessions.csv' || p === '/api/session') {
+  if (p === '/api/sessions' || p === '/api/sessions.csv' ||
+      p === '/api/sessions-wide.csv' || p === '/api/session') {
     if (!isAdmin(q, req)) return send(res, 401, { ok: false, error: 'admin key required' });
 
     if (p === '/api/sessions') {
@@ -241,6 +271,15 @@ function api(req, res, p, q) {
       var one = allSessions().filter(function (s) { return s.sessionId === q.id; })[0];
       return one ? send(res, 200, { ok: true, session: one }, { 'Cache-Control': 'no-store' })
                  : send(res, 404, { ok: false, error: 'not found' });
+    }
+    if (p === '/api/sessions-wide.csv') {
+      var wrows = [WIDE_COLS.join(',')];
+      allSessions().forEach(function (x) { wrows.push(sessionToWideRow(x)); });
+      return send(res, 200, Buffer.from('\ufeff' + wrows.join('\r\n'), 'utf8'), {
+        'Content-Type': TYPES['.csv'],
+        'Content-Disposition': 'attachment; filename="aqg-sessions-wide.csv"',
+        'Cache-Control': 'no-store'
+      });
     }
     var rows = [CSV_COLS.join(',')];
     allSessions().forEach(function (s) {
@@ -348,6 +387,16 @@ http.createServer(function (req, res) {
 
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'method not allowed');
   serveStatic(req, res, p);
+}).on('error', function (e) {
+  /* ข้อความที่อ่านรู้เรื่องแทน stack trace — กรณีที่เจอบ่อยคือมีเซิร์ฟเวอร์ตัวเก่ารันค้างอยู่ */
+  if (e.code === 'EADDRINUSE') {
+    console.error('พอร์ต ' + PORT + ' ถูกใช้อยู่แล้ว — มีเซิร์ฟเวอร์ AQG ตัวเก่ารันค้างอยู่หรือเปล่า?');
+    console.error('ดูว่าใครถือพอร์ต:  netstat -ano | findstr :' + PORT);
+    console.error('หรือสั่งใช้พอร์ตอื่น:  node server.js 5191');
+  } else {
+    console.error('เปิดเซิร์ฟเวอร์ไม่ได้: ' + e.message);
+  }
+  process.exit(1);
 }).listen(PORT, function () {
   console.log('AQG prototype  →  http://localhost:' + PORT);
   console.log('admin          →  http://localhost:' + PORT + '/admin.html');

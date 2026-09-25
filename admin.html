@@ -42,7 +42,8 @@
     <div class="admin__key">
       <input id="key" type="password" placeholder="admin key" autocomplete="off" />
       <button class="btn btn--primary" id="load">โหลดข้อมูล</button>
-      <button class="btn" id="csv">CSV ทั้งหมด</button>
+      <button class="btn" id="csv">CSV รายการตัดสินใจ</button>
+      <button class="btn" id="csvw">CSV สำหรับวิเคราะห์ (1 แถว/คน)</button>
     </div>
   </div>
 
@@ -52,6 +53,16 @@
     <h2 class="card__h">ค่าเฉลี่ยรายมิติ (ทุก session)</h2>
     <p class="card__note">คะแนน 1–5 · GRIT-Perseverance คือ anchor ที่มีน้ำหนักพยากรณ์สูงสุด</p>
     <div class="dimgrid" id="dims"></div>
+  </div>
+
+  <div class="card">
+    <h2 class="card__h">เปรียบเทียบรายหน่วย</h2>
+    <p class="card__note">ค่าเฉลี่ย 6 มิติแยกตามหน่วย/สังกัด (นับเฉพาะข้อที่มีคำตอบ)</p>
+    <table class="logtable" id="units">
+      <thead><tr><th>หน่วย</th><th class="num">n</th><th class="num">เฉลี่ยรวม</th>
+      <th class="num">AQ</th><th class="num">GRIT</th><th class="num">Perseverance</th><th class="num">หมดเวลา</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </div>
 
   <div class="card">
@@ -99,8 +110,9 @@
 
     var done = S.filter(function (s) { return s.decisions === 6; });
     var timeouts = S.reduce(function (a, s) { return a + s.timeouts; }, 0);
-    var avg = done.length
-      ? (done.reduce(function (a, s) { return a + s.avg; }, 0) / done.length).toFixed(2) : '—';
+    var scored = S.filter(function (s) { return typeof s.avg === 'number'; });
+    var avg = scored.length
+      ? (scored.reduce(function (a, s) { return a + s.avg; }, 0) / scored.length).toFixed(2) : '—';
     $('#stats').innerHTML =
       stat(S.length, 'session ทั้งหมด') +
       stat(done.length, 'ทำครบ 6 ข้อ') +
@@ -119,6 +131,8 @@
         '<p class="card__note" style="margin:6px 0 0">n = ' + vals.length + '</p></div>';
     }).join('');
 
+    renderUnits(S);
+
     var tb = $('#tbl tbody');
     tb.innerHTML = '';
     S.forEach(function (s) {
@@ -132,12 +146,43 @@
         '<td>' + esc(s.mode || '—') + '</td>' +
         '<td class="num">' + s.decisions + '/6</td>' +
         '<td class="num">' + s.timeouts + '</td>' +
-        '<td class="num">' + s.avg.toFixed(2) + '</td>' +
+        '<td class="num">' + (typeof s.avg === 'number' ? s.avg.toFixed(2) : '—') + '</td>' +
         '<td>' + (s.finishedAt ? new Date(s.finishedAt).toLocaleString('th-TH') : '—') + '</td>';
       tr.onclick = function () { toggle(tr, s.sessionId); };
       tb.appendChild(tr);
     });
   }
+  function renderUnits(S) {
+    var AQ = DIMS.slice(0, 4).map(function (d) { return d.key; });
+    var GR = DIMS.slice(4).map(function (d) { return d.key; });
+    var groups = {};
+    S.forEach(function (s) {
+      var u = (s.unit || '').trim() || '(ไม่ระบุหน่วย)';
+      (groups[u] = groups[u] || []).push(s);
+    });
+    var mean = function (list, keys) {
+      var v = [];
+      list.forEach(function (s) {
+        keys.forEach(function (k) {
+          if (typeof s.dimensions[k] === 'number') v.push(s.dimensions[k]);
+        });
+      });
+      return v.length ? (v.reduce(function (a, b) { return a + b; }, 0) / v.length).toFixed(2) : '—';
+    };
+    var rows = Object.keys(groups).sort().map(function (u) {
+      var g = groups[u];
+      var all = DIMS.map(function (d) { return d.key; });
+      return '<tr><td>' + esc(u) + '</td><td class="num">' + g.length + '</td>' +
+        '<td class="num">' + mean(g, all) + '</td>' +
+        '<td class="num">' + mean(g, AQ) + '</td>' +
+        '<td class="num">' + mean(g, GR) + '</td>' +
+        '<td class="num">' + mean(g, ['GRIT-Perseverance']) + '</td>' +
+        '<td class="num">' + g.reduce(function (a, s) { return a + s.timeouts; }, 0) + '</td></tr>';
+    });
+    $('#units tbody').innerHTML = rows.join('') ||
+      '<tr><td colspan="7" class="empty">ยังไม่มีข้อมูล</td></tr>';
+  }
+
   function stat(v, label) {
     return '<div class="stat"><b>' + esc(v) + '</b><span>' + esc(label) + '</span></div>';
   }
@@ -175,6 +220,9 @@
   $('#key').onkeydown = function (e) { if (e.key === 'Enter') load(); };
   $('#csv').onclick = function () {
     location.href = '/api/sessions.csv?key=' + encodeURIComponent(key());
+  };
+  $('#csvw').onclick = function () {
+    location.href = '/api/sessions-wide.csv?key=' + encodeURIComponent(key());
   };
   if (key()) load();
 })();

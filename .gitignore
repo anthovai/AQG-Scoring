@@ -18,3 +18,7 @@ __pycache__/
 
 # รหัสเข้าเล่นจริง (เซิร์ฟเวอร์สร้างไฟล์ตัวอย่างให้เองตอนรันครั้งแรก)
 config/access-codes.json
+
+# admin key ของเครื่องนี้ + log
+config/admin-key.txt
+logs/

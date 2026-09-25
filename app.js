@@ -398,7 +398,7 @@
       questionId: q.id,
       dimension: q.dimension,
       choiceId: opt ? opt.id : null,
-      score: opt ? opt.score : 0,
+      score: opt ? opt.score : null,   // หมดเวลา = missing data ไม่ใช่ 0 คะแนน
       displayedPosition: slot ? slot.label : null,
       displayedOrder: q.slots.map(function (s) { return s.label + ':' + s.choiceId; }),
       responseTimeMs: Math.round(performance.now() - state.askedAt),
@@ -483,7 +483,7 @@
       var opt = dec && dec.choiceId ? optionOf(d.from, dec.choiceId) : null;
       return {
         key: d.key, th: d.th, anchor: !!d.anchor, note: d.note || '', from: d.from,
-        score: dec ? dec.score : 0,
+        score: dec && dec.score != null ? dec.score : null,
         choiceId: dec ? dec.choiceId : null,
         slot: dec ? dec.displayedPosition : null,
         timedOut: dec ? dec.timedOut : true,
@@ -493,9 +493,14 @@
         ms: dec ? dec.responseTimeMs : null
       };
     });
+    /* ค่าเฉลี่ยนับเฉพาะมิติที่มีคำตอบ — ข้อที่หมดเวลาเป็น missing data
+       ถ้านับเป็น 0 ค่าเฉลี่ยจะต่ำกว่าความจริง */
     var avg = function (a) {
-      return a.length ? a.reduce(function (s, r) { return s + r.score; }, 0) / a.length : 0;
+      var v = a.filter(function (r) { return r.score != null; });
+      return v.length ? v.reduce(function (s, r) { return s + r.score; }, 0) / v.length : null;
     };
+    var fmtAvg = function (x) { return x == null ? '—' : x.toFixed(2); };
+    var missing = rows.filter(function (r) { return r.score == null; });
     var find = function (k) {
       for (var i = 0; i < rows.length; i++) if (rows[i].key === k) return rows[i];
       return null;
@@ -504,14 +509,16 @@
     return {
       rows: rows,
       avgAll: avg(rows), avgAQ: avg(rows.slice(0, 4)), avgGRIT: avg(rows.slice(4)),
-      strengths: rows.filter(function (r) { return r.score >= 4; })
+      fmtAvg: fmtAvg, missing: missing,
+      strengths: rows.filter(function (r) { return r.score != null && r.score >= 4; })
         .sort(function (a, b) { return b.score - a.score; }),
-      improve: rows.filter(function (r) { return r.score <= 2; })
+      improve: rows.filter(function (r) { return r.score != null && r.score <= 2; })
         .sort(function (a, b) {
           if (a.anchor !== b.anchor) return a.anchor ? -1 : 1;   // S7 first when low
           return a.score - b.score;
         }),
-      dualFlag: !!(ctrl && pass && ctrl.score >= META.dualFlag.threshold &&
+      dualFlag: !!(ctrl && pass && ctrl.score != null && pass.score != null &&
+                   ctrl.score >= META.dualFlag.threshold &&
                    pass.score >= META.dualFlag.threshold)
     };
   }
@@ -536,16 +543,16 @@
            '" y2="' + e[1].toFixed(1) + '"/>';
     }
     s += '<polygon class="radar__shape" points="' + rows.map(function (r, i) {
-      return pt(i, R * Math.max(r.score, 0.12) / 5).map(function (v) { return v.toFixed(1); }).join(',');
+      return pt(i, R * Math.max(r.score == null ? 0 : r.score, 0.12) / 5).map(function (v) { return v.toFixed(1); }).join(',');
     }).join(' ') + '"/>';
     rows.forEach(function (r, i) {
-      var p = pt(i, R * Math.max(r.score, 0.12) / 5);
+      var p = pt(i, R * Math.max(r.score == null ? 0 : r.score, 0.12) / 5);
       s += '<circle class="radar__dot" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3.5"/>';
       var l = pt(i, R + 22), anchor = 'middle';
       if (l[0] > CX + 10) anchor = 'start'; else if (l[0] < CX - 10) anchor = 'end';
       s += '<text class="radar__label' + (r.anchor ? ' radar__label--anchor' : '') + '" x="' +
            l[0].toFixed(1) + '" y="' + (l[1] + 4).toFixed(1) + '" text-anchor="' + anchor + '">' +
-           r.key.replace(/^(AQ|GRIT)-/, '') + ' ' + r.score + '</text>';
+           r.key.replace(/^(AQ|GRIT)-/, '') + ' ' + (r.score == null ? '—' : r.score) + '</text>';
     });
     return s + '</svg>';
   }
@@ -569,15 +576,21 @@
          '<p class="card__note">คะแนนรายมิติ 1–5 ตามเกณฑ์ในเอกสาร (A=5, B=4, C=3, D=2, E=1)</p>' +
          '<div class="radarwrap"><div>' + radarSVG(R.rows) + '</div><div class="bars">';
     R.rows.forEach(function (r) {
-      h += '<div class="bar' + (r.anchor ? ' bar--anchor' : '') + (r.score <= 2 ? ' bar--low' : '') + '">' +
+      var miss = r.score == null;
+      h += '<div class="bar' + (r.anchor ? ' bar--anchor' : '') +
+           (!miss && r.score <= 2 ? ' bar--low' : '') + (miss ? ' bar--missing' : '') + '">' +
            '<div class="bar__top"><span class="bar__name">' + r.key + ' <small>· ' + r.th + '</small>' +
            (r.anchor ? '<span class="pill">anchor</span>' : '') + '</span>' +
-           '<span class="bar__score"><b>' + r.score + '</b><span>/5</span></span></div>' +
-           '<div class="bar__track"><div class="bar__fill" style="width:' + (r.score / 5 * 100) + '%"></div></div></div>';
+           '<span class="bar__score">' + (miss ? '<b>—</b><span>ไม่มีข้อมูล</span>'
+             : '<b>' + r.score + '</b><span>/5</span>') + '</span></div>' +
+           '<div class="bar__track"><div class="bar__fill" style="width:' +
+           (miss ? 0 : r.score / 5 * 100) + '%"></div></div></div>';
     });
     h += '</div></div><p class="card__note" style="margin:22px 0 0">ค่าเฉลี่ยอ้างอิง — รวม 6 มิติ ' +
-         R.avgAll.toFixed(2) + ' · AQ (4 มิติ) ' + R.avgAQ.toFixed(2) +
-         ' · GRIT (2 มิติ) ' + R.avgGRIT.toFixed(2) + '</p></div>';
+         R.fmtAvg(R.avgAll) + ' · AQ (4 มิติ) ' + R.fmtAvg(R.avgAQ) +
+         ' · GRIT (2 มิติ) ' + R.fmtAvg(R.avgGRIT) +
+         (R.missing.length ? ' — คิดจาก ' + (6 - R.missing.length) + '/6 มิติ (' +
+            R.missing.length + ' ข้อหมดเวลา ไม่นับรวม)' : '') + '</p></div>';
 
     if (R.dualFlag) {
       h += '<div class="card card--flag"><h2 class="card__h">' + META.dualFlag.title + '</h2>' +
@@ -605,7 +618,8 @@
     R.rows.forEach(function (r) {
       h += '<div class="tagrow"><div class="tagrow__dim">' + r.key +
            '<div class="tagrow__id" style="margin:0">' + (r.choiceId || '— หมดเวลา') +
-           ' · ' + r.score + '/5</div></div><div><p class="tagrow__tag">' + r.tag + '</p>' +
+           ' · ' + (r.score == null ? 'ไม่มีข้อมูล' : r.score + '/5') +
+           '</div></div><div><p class="tagrow__tag">' + r.tag + '</p>' +
            '<p class="tagrow__advice">' + r.advice + '</p>' +
            (r.note ? '<p class="tagrow__advice" style="color:var(--amber)">' + r.note + '</p>' : '') +
            '</div></div>';
@@ -619,7 +633,7 @@
     S.decisions.forEach(function (d, i) {
       h += '<tr><td>' + (i + 1) + '</td><td class="mono">' + d.questionId + '</td>' +
            '<td class="mono">' + (d.choiceId || '—') + '</td><td>' + (d.displayedPosition || '—') +
-           '</td><td>' + d.score + '</td><td>' + d.responseTimeMs + '</td><td>' +
+           '</td><td>' + (d.score == null ? '—' : d.score) + '</td><td>' + d.responseTimeMs + '</td><td>' +
            new Date(d.timestamp).toLocaleTimeString('th-TH') + '</td></tr>';
     });
     h += '</tbody></table></div>';
@@ -824,7 +838,17 @@
       if (V) V.pause();
       if ($('#video-title')) $('#video-title').pause();
       /* entering the assessment goes through the S00 title/briefing video */
-      if (t.dataset.go === 'intro') return playTitle();
+      if (t.dataset.go === 'intro') {
+        /* โหมดบังคับรหัส: กด START ต้องไปหน้ารหัสก่อน ไม่งั้นผู้เล่นจะเล่นจนจบ
+           แล้วเซิร์ฟเวอร์ปฏิเสธการบันทึก = เสียข้อมูลไปทั้งรอบ */
+        if (state.backend && state.backend.requireCode && !state.code) {
+          show('login');
+          loginStatus('ต้องใส่รหัสเข้าเล่นก่อนเริ่มการประเมิน', 'bad');
+          $('#in-code').focus();
+          return;
+        }
+        return playTitle();
+      }
       show(t.dataset.go);
     });
     $('#btn-begin').onclick = begin;

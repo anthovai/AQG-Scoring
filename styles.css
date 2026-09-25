@@ -327,6 +327,9 @@ button{font:inherit}
 .bar__fill{height:100%; border-radius:99px; background:linear-gradient(90deg,var(--amber),var(--amber-2)); transition:width .8s cubic-bezier(.2,.8,.2,1)}
 .bar--anchor .bar__name{color:var(--amber-2)}
 .bar--low .bar__fill{background:linear-gradient(90deg,#b8453a,var(--alert))}
+.bar--missing .bar__name,.bar--missing .bar__score b{color:var(--ink-faint)}
+.bar--missing .bar__score span{font-size:11px; letter-spacing:.08em}
+.bar--missing .bar__track{background:repeating-linear-gradient(90deg,rgba(150,180,200,.18) 0 6px,transparent 6px 12px)}
 
 .tags{display:grid; gap:12px}
 .tagrow{

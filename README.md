@@ -8,40 +8,55 @@
 
 ## 1. รันระบบ
 
-```bash
-node server.js 5190
+**ใช้งานจริง / เก็บข้อมูล** (บังคับรหัสเข้าเล่น + ใช้ admin key เดิมทุกครั้ง):
+
+```powershell
+.\start.ps1
 ```
+
+**สาธิต/ทดลอง** (ใครก็กดเล่นได้ ไม่ต้องมีรหัส):
+
+```powershell
+.\start.ps1 -NoCode
+```
+
+สคริปต์จะพิมพ์ที่อยู่สำหรับเครื่องอื่นในวง LAN (สำหรับมือถือ/แท็บเล็ต), admin key,
+และสถานะว่าบังคับรหัสหรือไม่ · ถ้าจะรันดิบๆ ก็ยังใช้ `node server.js 5190` ได้เหมือนเดิม
 
 | อะไร | ที่ไหน |
 |---|---|
 | หน้าเล่นเกม | <http://localhost:5190> |
-| หลังบ้าน (ผลรวมทุกคน) | <http://localhost:5190/admin.html> — **คีย์จะถูกสุ่มและพิมพ์ในคอนโซลตอนรัน** |
+| หลังบ้าน (ผลรวมทุกคน) | <http://localhost:5190/admin.html> |
 | โหมดสลับลำดับตัวเลือก | <http://localhost:5190/?panel=1> (ดูข้อ 6) |
 
-ต้องรันผ่าน `server.js` (ไม่ใช่เปิด `index.html` ตรงๆ) เพราะวีดีโอไฟล์ละ 250–640 MB
-ต้องใช้ HTTP range request — และไม่ต้องติดตั้ง dependency อะไรเลย (Node เปล่าๆ)
+**admin key** เก็บที่ `configdmin-key.txt` (สุ่มให้ครั้งแรก ไม่ขึ้น GitHub)
+ถ้ารัน `node server.js` ตรงๆ โดยไม่ตั้ง `AQG_ADMIN_KEY` ระบบจะสุ่มคีย์ใหม่ทุกครั้งแล้วพิมพ์ในคอนโซล
 
-ตัวแปรสภาพแวดล้อม (ตั้งก่อนรัน):
+**รหัสเข้าเล่น** แก้ที่ `configccess-codes.json` (แก้แล้วใช้ได้ทันที ไม่ต้องรีสตาร์ต)
 
-| ตัวแปร | ความหมาย |
-|---|---|
-| `PORT` | พอร์ต (ค่าเริ่มต้น 5190) |
-| `AQG_ADMIN_KEY` | คีย์เข้าหลังบ้าน — **ถ้าไม่ตั้ง ระบบจะสุ่มคีย์ใหม่ทุกครั้งที่รัน แล้วพิมพ์ในคอนโซล** (ไม่มีคีย์เริ่มต้นที่เดาได้) ตั้งค่านี้ถ้าต้องการใช้คีย์เดิมทุกครั้ง |
-| `AQG_REQUIRE_CODE=1` | บังคับให้ผู้เล่นใส่รหัสเข้าเล่นที่ถูกต้องก่อนเริ่ม |
-| `AQG_DEV=1` | เปิด `POST /_shot` สำหรับ dump เฟรมตอน calibrate cue |
+### ให้เซิร์ฟเวอร์ไม่ดับ + สำรองข้อมูลอัตโนมัติ
 
-PowerShell: `$env:AQG_ADMIN_KEY="รหัสของท่าน"; $env:AQG_REQUIRE_CODE="1"; node server.js 5190`
-
-ตรวจความพร้อมก่อนเดโม/ติดตั้ง:
-
-```bash
-node tools/check.js
+```powershell
+.	ools
+un-forever.ps1 -Register        # เริ่มเองทุกครั้งที่ล็อกอิน + ถ้าดับจะเปิดใหม่ใน 3 วิ
+.	oolsackup-results.ps1 -Register     # สำรอง results\ เป็น zip ทุกวัน 18:00 (เก็บ 90 วัน)
 ```
 
-(ตรวจว่าทุกคำถามมี 5 ตัวเลือก คะแนนครบ 1–5 ตรง scoreMap, `slots` แม็พครบ,
-ช่วง `cue` สมเหตุสมผล, ไฟล์วีดีโอ/ภาพ/สคริปต์ครบ)
+ยกเลิกด้วย `-Unregister` · log เหตุการณ์อยู่ที่ `logs\server.log` (เปิดอ่านได้ระหว่างรัน)
+ปลายทางสำรองเปลี่ยนได้ด้วย `-Dest "D:ackupqg"`
 
----
+> **ข้อควรรู้**: พาธโปรเจกต์มีอักษรไทย ซึ่ง Windows PowerShell 5.1 ส่งผ่าน `-File` ไม่ได้
+> สคริปต์จึงลงทะเบียนงานด้วย `-EncodedCommand` และใช้ shortcut (.lnk) แทนไฟล์ .cmd
+
+### เปิดให้เครื่องอื่นในวง LAN เข้าได้
+
+ครั้งเดียว (ต้องรันเป็น Administrator):
+
+```powershell
+New-NetFirewallRule -DisplayName 'AQG' -Direction Inbound -Protocol TCP -LocalPort 5190 -Action Allow
+```
+
+ตรวจความพร้อมก่อนเดโม/ติดตั้ง: `node tools\check.js`
 
 ## 2. โครงสร้างเกม (ตามเอกสาร)
 
@@ -64,7 +79,8 @@ Flow: เมนู → LOGIN/ABOUT → **วีดีโอไทเทิล+�
 * `A=5, B=4, C=3, D=2, E=1` **ผูกกับ `choice_id`** (เช่น `S1_1_A`) ไม่ใช่ตำแหน่งบนจอ
 * บันทึกต่อ 1 การตัดสินใจ: `choice_id`, `displayedPosition` (ช่องที่กดจริง A–E),
   `displayedOrder` (ผังตำแหน่ง→choice_id ของข้อนั้น), `responseTimeMs`, `timedOut`, `mode`, `timestamp`
-* **20 วินาที/ข้อ** — หมดเวลา = `timedOut: true` คะแนน 0
+* **20 วินาที/ข้อ** — หมดเวลา = `timedOut: true` และ **`score: null` (missing data ไม่ใช่ 0 คะแนน)**
+  ค่าเฉลี่ยจะคิดเฉพาะมิติที่มีคำตอบ และหน้าผล/หลังบ้านแสดงเป็น “ไม่มีข้อมูล”
 * ไม่แสดงคะแนนหรือใบ้ใดๆ ระหว่างเล่น
 * Result Screen: เรดาร์ + แท่ง 6 มิติ · Behavior Tag + คำแนะนำรายมิติ (ตามตัวเลือกที่เลือกจริง) ·
   จุดเด่น (4–5) · จุดที่ควรพัฒนา (1–2 เรียง GRIT-Perseverance ก่อนเมื่อต่ำ) ·
@@ -76,7 +92,7 @@ Flow: เมนู → LOGIN/ABOUT → **วีดีโอไทเทิล+�
 | เรื่อง | ที่ระบบใช้ | แก้ที่ |
 |---|---|---|
 | เกณฑ์ "สูงพร้อมกัน" ของ Dual-radar flag | ทั้ง Control และ Passion **≥ 4** (ตามเกณฑ์จุดเด่น 4–5) | `dualFlag.threshold` ใน `tools/gen_data.py` |
-| หมดเวลาไม่ตอบ | คะแนน 0 + `timedOut: true` + ข้อความว่าควรทำซ้ำ | `answer()` ใน `app.js` |
+| หมดเวลาไม่ตอบ | **missing data** (`score: null`) ไม่นับในค่าเฉลี่ย + ข้อความว่าควรทำซ้ำ | `answer()` ใน `app.js` |
 | คะแนนรวม | ไม่ตั้งเป็นคะแนนทางการ แสดงเป็น "ค่าเฉลี่ยอ้างอิง" 3 ตัว | `computeResult()` ใน `app.js` |
 
 ### เอกสารต้นทาง (ฉบับอ้างอิงหลัก + ฉบับก่อนหน้า)
@@ -146,8 +162,8 @@ NARRATION_SOURCE = MASTER      # เดิม 'scoring_aug30.txt'
 > `results/` คือข้อมูลผู้เข้าร่วมจริง — อยู่ใน `.gitignore` แล้ว ควรสำรองและจำกัดการเข้าถึง
 
 **หลังบ้าน `admin.html`**: จำนวน session · จำนวนข้อที่หมดเวลา · ค่าเฉลี่ยรวม ·
-ค่าเฉลี่ยรายมิติ 6 มิติ (พร้อม n) · ตาราง session คลิกดูการตัดสินใจทั้ง 6 ข้อ ·
-ปุ่มดาวน์โหลด **CSV รวมทุกคน**
+ค่าเฉลี่ยรายมิติ 6 มิติ (พร้อม n ที่นับเฉพาะคนที่ตอบ) · **ตารางเปรียบเทียบรายหน่วย** ·
+ตาราง session คลิกดูการตัดสินใจทั้ง 6 ข้อ · ดาวน์โหลด **CSV รายการตัดสินใจ** และ **CSV สำหรับวิเคราะห์ (1 แถว/คน)**
 
 ### API
 
@@ -158,7 +174,8 @@ NARRATION_SOURCE = MASTER      # เดิม 'scoring_aug30.txt'
 | `POST /api/sessions` | บันทึก 1 session (ตัวแอปเรียกเองตอนจบเกม) |
 | `GET /api/sessions?key=…` | สรุปทุก session (ต้องมี admin key) |
 | `GET /api/session?id=…&key=…` | รายละเอียด 1 session |
-| `GET /api/sessions.csv?key=…` | CSV รวมทุกการตัดสินใจ |
+| `GET /api/sessions.csv?key=…` | CSV รวมทุกการตัดสินใจ (1 แถว = 1 การตัดสินใจ) |
+| `GET /api/sessions-wide.csv?key=…` | **CSV สำหรับวิเคราะห์สถิติ** (1 แถว = 1 คน, 6 มิติเป็นคอลัมน์, ข้อที่หมดเวลาเว้นว่าง) |
 
 **ถ้าไม่ได้รัน server** (เปิดไฟล์ตรงๆ / เซิร์ฟเวอร์ล่ม) แอปยังเล่นได้ครบ →
 สลับเป็น *โหมดเดี่ยว* อัตโนมัติ เก็บผลใน localStorage + ดาวน์โหลดไฟล์ และแจ้งผู้เล่นบนหน้าผล
@@ -256,6 +273,10 @@ admin.html            หลังบ้าน: ผลรวมทุก session
 app.js                flow, decision layer, นาฬิกา 20 วิ, คะแนน, Result Screen, export, ส่งผลขึ้นเซิร์ฟเวอร์
 styles.css            ธีม night-ops HUD + responsive + print
 server.js             static (range/etag/gzip) + results API + access code
+start.ps1             สคริปต์เริ่มระบบสำหรับใช้งานจริง (admin key + รหัสเข้าเล่น + ที่อยู่ LAN)
+tools/run-forever.ps1     รันไม่ให้ดับ + เริ่มเองตอนล็อกอิน (-Register / -Unregister)
+tools/backup-results.ps1  สำรอง results/ เป็น zip + ตั้งเวลาอัตโนมัติ (-Register)
+logs/                 log เหตุการณ์ของเซิร์ฟเวอร์ (gitignored)
 data/game.js          ข้อมูลเกมทั้งหมด (AUTO-GENERATED — ห้ามแก้มือ)
 config/access-codes.json  รายชื่อรหัสเข้าเล่น (สร้างอัตโนมัติครั้งแรก)
 results/              ผลจริงต่อ session + sessions.jsonl (gitignored)
