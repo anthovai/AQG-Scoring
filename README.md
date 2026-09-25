@@ -68,12 +68,30 @@ New-NetFirewallRule -DisplayName 'AQG' -Direction Inbound -Protocol TCP -LocalPo
 
 ปลายทาง: **https://aqg-uat.152.42.177.130.sslip.io**
 
+**Windows (PowerShell — แนะนำ)** ใช้แค่ ssh/scp/tar ที่มีมากับ Windows ไม่ต้องมี rsync:
+
+```powershell
+.	ools\deploy-uat.ps1
+```
+
+**Linux / macOS** (ต้องมี rsync):
+
 ```bash
 bash tools/deploy-uat.sh
 ```
 
-สคริปต์จะ rsync โค้ด + วีดีโอไป `/opt/aqg`, สร้าง `.env` พร้อม admin key ให้อัตโนมัติ,
-แล้ว `docker compose up -d --build` และตรวจว่า https ใช้งานได้
+สคริปต์จะส่งโค้ด + วีดีโอไป `/opt/aqg`, สร้าง `.env` พร้อม admin key ให้อัตโนมัติ,
+แล้ว `docker compose up -d --build` และตรวจว่า https ใช้งานได้ (รอใบรับรองให้ด้วย)
+
+ตัวเลือกของ `deploy-uat.ps1`:
+
+| คำสั่ง | ใช้เมื่อ |
+|---|---|
+| `.	ools\deploy-uat.ps1 -SkipVideo` | แก้โค้ดแล้ว deploy ซ้ำ (ไม่อัปวีดีโอ = เร็วมาก) |
+| `.	ools\deploy-uat.ps1 -Caddy` | เซิร์ฟเวอร์ยังไม่มี reverse proxy |
+| `.	ools\deploy-uat.ps1 -ServerHost root@1.2.3.4 -Domain uat.example.com` | เปลี่ยนเซิร์ฟเวอร์/โดเมน |
+
+> วีดีโอจะอัปเฉพาะไฟล์ที่ยังไม่มีบนเซิร์ฟเวอร์หรือขนาดไม่ตรง — deploy รอบถัดไปจึงเร็ว
 
 | ไฟล์ | ใช้เมื่อ |
 |---|---|
